@@ -8,22 +8,17 @@
 #include <gz/sim/Model.hh>
 #include <gz/sim/System.hh>
 #include <gz/transport/Node.hh>
-#include <OsqpEigen/OsqpEigen.h>
-
 #include <gz/plugin/Register.hh>
-
 #include "gz/sim/components/ChildLinkName.hh"
 #include "gz/sim/components/Name.hh"
 #include "gz/sim/components/Joint.hh"
-#include "gz/sim/components/JointAxis.hh"
-#include "gz/sim/components/JointForce.hh"
+#include <gz/sim/components/JointPositionReset.hh>
+#include "gz/sim/components/JointForceCmd.hh"
 #include "gz/sim/components/JointPosition.hh"
 #include "gz/sim/components/JointVelocity.hh"
-#include "gz/sim/components/ParentEntity.hh"
-#include "gz/sim/components/ParentLinkName.hh"
-#include "gz/sim/components/Pose.hh"
-
 #include <gz/math/Pose3.hh>
+
+#include <OsqpEigen/OsqpEigen.h>
 
 class Go2Controller : public gz::sim::System,
                       public gz::sim::ISystemConfigure,
@@ -43,9 +38,10 @@ public:
                    gz::sim::EntityComponentManager &_ecm);
 
 private:
-    // void CreateComponents(gz::sim::v8::EntityComponentManager &_ecm,
-    //                       gz::sim::v8::Entity _joint,
-    //                       std::string _joint_name);
+    void CreateComponents(gz::sim::v8::EntityComponentManager &_ecm,
+                          gz::sim::v8::Entity _joint);
+
+    void DataVectorSDF(const std::string _data, Eigen::VectorXd &_vec);
 
     double kp, kd;
 
@@ -53,11 +49,17 @@ private:
 
     std::string model_name;
 
-    std::vector<gz::sim::v8::Entity> joints;
+    std::vector<gz::sim::v8::Entity> joint_entities;
 
-    Eigen::VectorXd qr, q0;
+    std::vector<std::string> joint_names;
+
+    Eigen::VectorXd qr, q0, b0;
+
+    gz::math::Pose3d p0;
 
     std::chrono::steady_clock::duration updatePeriod{0};
+
+    std::chrono::steady_clock::duration lastUpdateTime{0};
 };
 
 #endif

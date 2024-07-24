@@ -2,7 +2,11 @@
 
 Go2Controller::Go2Controller()
 {
-    std::cout << "Teste" << std::endl;
+    std::cout << "GO2 CONTROLLER" << std::endl;
+    this->q0.resize(12, 1);
+    this->q0.setZero();
+    this->b0.resize(6, 1);
+    this->b0.setZero();
 }
 
 Go2Controller::~Go2Controller()
@@ -19,93 +23,138 @@ void Go2Controller::Configure(const gz::sim::Entity &_entity,
     this->model_name = this->model.Name(_ecm);
 
     this->kp = _sdf->Get<double>("kp");
-    std::cout << this->kp << std::endl;
+
     this->kd = _sdf->Get<double>("kd");
-    std::cout << this->kd << std::endl;
 
     double rate = _sdf->Get<double>("update_rate", 100).first;
 
     std::chrono::duration<double> period{rate > 0 ? 1 / rate : 0};
 
+    std::string dataFromSDF;
+
     if (_sdf->HasElement("q0"))
-        std::cout << "he1" << std::endl;
+    {
+        dataFromSDF = _sdf->Get<std::string>("q0");
+        this->DataVectorSDF(dataFromSDF, this->q0);
+    }
+    else
+    {
+        this->q0 << 0.0, 1.36, -2.65,
+            0.0, 1.36, -2.65,
+            0.2, 1.36, -2.65,
+            0.2, 1.36, -2.65;
+    }
 
-    if (_sdf->HasElement("b0"))
-        std::cout << "he2" << std::endl;
+    dataFromSDF = "";
 
-    // std::string b0 = _sdf->Get("b0");
-
-    // std::cout << b0 << std::endl;
+    if (_sdf->HasElement("p0"))
+    {
+        dataFromSDF = _sdf->Get<std::string>("p0");
+        this->DataVectorSDF(dataFromSDF, this->b0);
+    }
+    else
+    {
+        this->b0 << 0, 0, 2, 0, 0, 0;
+    }
 
     this->updatePeriod =
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(period);
 
-    std::cout << this->model_name << std::endl;
-    gz::math::Pose3d p;
-    p.Pos().Set(0, 0, 1);
+    this->p0.Set(this->b0[0], this->b0[1], this->b0[2], this->b0[3], this->b0[4], this->b0[5]);
 
-    this->model.SetWorldPoseCmd(_ecm, p);
+    this->model.SetWorldPoseCmd(_ecm, this->p0);
 
-    this->joints = _ecm.ChildrenByComponents(this->model.Entity(), gz::sim::components::Joint());
+    this->joint_entities = _ecm.ChildrenByComponents(this->model.Entity(), gz::sim::components::Joint());
 
-    for (const gz::sim::v8::Entity &joint : this->joints)
+    for (const gz::sim::v8::Entity &joint : this->joint_entities)
     {
-        // std::cout << joint << std::endl;
+        this->CreateComponents(_ecm, joint);
     }
 
-    std::cout << "END" << std::endl;
+    for (int idc = 0; idc < this->joint_entities.size(); idc++)
+    {
+        _ecm.SetComponentData<gz::sim::components::JointPositionReset>(this->joint_entities[idc], {this->q0[idc]});
+    }
+
+    this->qr.resize(12, 1);
+    this->qr.setZero();
+    this->qr << 0.0, 0.67, -1.3, 0.0, 0.67, -1.3,
+        0.0, 0.67, -1.3, 0.0, 0.67, -1.3;
+
+    std::cout << "GO2 Controller Configured" << std::endl;
 }
 
-// void Go2Controller::CreateComponents(gz::sim::v8::EntityComponentManager &_ecm,
-//                                      gz::sim::v8::Entity _joint,
-//                                      std::string _joint_name)
-// {
+void Go2Controller::DataVectorSDF(const std::string _data, Eigen::VectorXd &_vec)
+{
+    std::string aux;
+    int pos = 0;
+    for (int idx = 0; idx <= _data.size(); idx++)
+    {
+        if (_data[idx] != ',' && _data[idx] != '\0')
+        {
+            aux += _data[idx];
+        }
+        else
+        {
+            _vec[pos] = std::stod(aux);
+            pos++;
+            aux = "";
+        }
+    }
+}
 
-//     if (!_ecm.EntityHasComponentType(_joint, gz::sim::v8::components::Joint::typeId))
-//     {
-//         gzerr << "Entity with name[" << _joint_name
-//               << "] is not a joint\n";
-//     }
-//     else
-//     {
-//         gzmsg << "Identified joint [" << _joint_name
-//               << "] as Entity [" << _joint << "]\n";
-//     }
+void Go2Controller::CreateComponents(gz::sim::v8::EntityComponentManager &_ecm,
+                                     gz::sim::v8::Entity _joint)
+{
+    this->joint_names.push_back(_ecm.ComponentData<gz::sim::components::Name>(_joint).value());
 
-//     this->joints.push_back(_joint);
-//     // Create joint position component if one doesn't exist
-//     if (!_ecm.EntityHasComponentType(_joint,
-//                                      gz::sim::v8::components::JointPosition().TypeId()))
-//     {
-//         _ecm.CreateComponent(_joint, gz::sim::v8::components::JointPosition());
-//         gzmsg << "Create a 'Position Component' for the joint "
-//               << _joint_name << ", component: "
-//               << _joint << std::endl;
-//     }
+    if (!_ecm.EntityHasComponentType(_joint,
+                                     gz::sim::v8::components::JointPosition().TypeId()))
+    {
+        _ecm.CreateComponent(_joint, gz::sim::v8::components::JointPosition());
+    }
 
-//     // Create joint velocity component if one doesn't exist
-//     if (!_ecm.EntityHasComponentType(_joint,
-//                                      gz::sim::v8::components::JointVelocity().TypeId()))
-//     {
-//         _ecm.CreateComponent(_joint, gz::sim::v8::components::JointVelocity());
-//         gzmsg << "Create a 'Velocity Component' for the joint "
-//               << _joint_name << ", component: "
-//               << _joint << std::endl;
-//     }
+    if (!_ecm.EntityHasComponentType(_joint,
+                                     gz::sim::v8::components::JointVelocity().TypeId()))
+    {
+        _ecm.CreateComponent(_joint, gz::sim::v8::components::JointVelocity());
+    }
 
-//     if (!_ecm.EntityHasComponentType(_joint,
-//                                      gz::sim::v8::components::JointForceCmd().TypeId()))
-//     {
-//         _ecm.CreateComponent(_joint, gz::sim::v8::components::JointForceCmd({0}));
-//         gzmsg << "Create a 'Force Component' for the joint "
-//               << _joint_name << ", component: "
-//               << _joint << std::endl;
-//     }
-// }
+    if (!_ecm.EntityHasComponentType(_joint,
+                                     gz::sim::v8::components::JointForceCmd().TypeId()))
+    {
+        _ecm.CreateComponent(_joint, gz::sim::v8::components::JointForceCmd({0}));
+    }
+}
 
 void Go2Controller::PreUpdate(const gz::sim::UpdateInfo &_info,
                               gz::sim::EntityComponentManager &_ecm)
 {
+    if (this->joint_entities.empty())
+        return;
+
+    // Nothing left to do if paused.
+    if (_info.paused)
+        return;
+
+    auto elapsed = _info.simTime - this->lastUpdateTime;
+
+    if (elapsed > std::chrono::steady_clock::duration::zero() && elapsed < this->updatePeriod)
+        return;
+
+    for (int idx = 0; idx < this->joint_entities.size(); idx++)
+    {
+        const auto *jointPositions = _ecm.Component<gz::sim::v8::components::JointPosition>(this->joint_entities[idx]);
+        const auto *jointVelocity = _ecm.Component<gz::sim::v8::components::JointVelocity>(this->joint_entities[idx]);
+
+        if (jointPositions == nullptr || jointPositions->Data().empty() || jointVelocity == nullptr || jointVelocity->Data().empty())
+            return;
+
+        double tau = this->kp * (this->qr[idx] - jointPositions->Data()[0]) - this->kd * jointVelocity->Data()[0];
+        auto forceComp = _ecm.Component<gz::sim::v8::components::JointForceCmd>(this->joint_entities[idx]);
+        *forceComp = gz::sim::v8::components::JointForceCmd({tau});
+    }
+    this->lastUpdateTime = _info.simTime;
 }
 
 GZ_ADD_PLUGIN(Go2Controller,
