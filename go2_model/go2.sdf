@@ -967,7 +967,7 @@
       <pose>0 0 0 0 0 0</pose>
     </frame>
     <frame name='odom_joint' attached_to='odom'>
-      <pose>0 0 0 0 0 0</pose>
+      <pose>0 0 0 0 0 0</pose>name
     </frame>
     <frame name='base_link' attached_to='odom_joint'>
       <pose>0 0 0 0 0 0</pose>
@@ -1050,6 +1050,14 @@
     <frame name='odom' attached_to='map_joint'>
       <pose>0 0 0 0 0 0</pose>
     </frame>
+    <plugin name="Go2Controller" 
+        filename="/home/agd/go2_gz/go2_controller/build/libgo2_controller.so">
+        <update_rate>1000</update_rate>
+        <kp>60</kp>
+        <kd>5</kd>
+        <q0>0.0, 1.36, -2.65, 0.0, 1.36, -2.65, -0.2, 1.36, -2.65, 0.2, 1.36, -2.65</q0>
+        <b0> 0, 0, 0, 0, 0, 0</b0>
+      </plugin>
   </model>
     </world>
 </sdf>
